@@ -105,7 +105,12 @@ class TranslateViewTranslate extends JoomfishViewDefault
 		parent::display($tpl);
 	}
 
-
+	protected function translationmap($tpl = null)
+	{
+		
+	}
+	
+	
 	protected function overview($tpl = null)
 	{
 		// browser title

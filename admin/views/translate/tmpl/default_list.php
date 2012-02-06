@@ -49,75 +49,178 @@ if (isset($this->filterlist) && count($this->filterlist)>0){
 	}
 	$filterOptions .= '</tr></table>';
 }
+JHTML::_('behavior.modal');
 
 
+ // index.php?option=com_joomfish&task=translate.translationmap&layout=translationmap&tmpl=component&catid='+catid+'&language_id='+language_id+'&reference_id='+reference_id
 ?>
+
+<script type="text/javascript">
+	//<![CDATA[
+function showTransmapEditor(fieldId, language_id, reference_id, catid) {
+	var field = document.getElementById(fieldId);
+	SqueezeBox.initialize();
+	SqueezeBox.fromElement(field, {
+		handler: 'iframe',
+		url: '<?php echo JURI::base()?>index.php?option=com_joomfish&task=translationmap.edit&tmpl=component&catid='+catid+'&language_id='+language_id+'&reference_id='+reference_id,
+		size: {x: 750, y: 500}
+	});
+}
+//]]>
+</script>
+
+
 <form action="index.php" method="post" name="adminForm">
-  <?php echo $filterOptions; ?>
-  <table class="adminlist" cellspacing="1">
-  <thead>
-    <tr>
-      <th width="20"><input type="checkbox" name="toggle" value="" onclick="checkAll(<?php echo count($this->rows); ?>);" /></th>
-      <th class="title" width="20%" align="left"  nowrap="nowrap"><?php echo JText::_( 'TITLE' );?></th>
-      <th width="10%" align="left" nowrap="nowrap"><?php echo JText::_( 'LANGUAGE' );?></th>
-      <th width="20%" align="left" nowrap="nowrap"><?php echo JText::_('TITLE_TRANSLATION');?></th>
-      <th width="15%" align="left" nowrap="nowrap"><?php echo JText::_('TITLE_DATECHANGED');?></th>
-      <th width="15%" nowrap="nowrap" align="center"><?php echo JText::_('TITLE_STATE');?></th>
-      <th align="center" nowrap="nowrap"><?php echo JText::_('TITLE_PUBLISHED');?></th>
-    </tr>
-    </thead>
-    <tfoot>
-        <tr>
-    	  <td align="center" colspan="7">
-			<?php echo $this->pageNav->getListFooter(); ?>
-		  </td>
+	<?php echo $filterOptions; ?>
+	<table class="adminlist" cellspacing="1">
+	<thead>
+		<tr>
+			<th width="20"><input type="checkbox" name="toggle" value="" onclick="checkAll(<?php echo count($this->rows); ?>);" /></th>
+			<th class="title" width="20%" align="left" nowrap="nowrap"><?php echo JText::_( 'TITLE' );?></th>
+			<th width="10%" align="left" nowrap="nowrap"><?php echo JText::_( 'LANGUAGE' );?></th>
+			
+			<!-- TODO only if we have native?-->
+			<?php if($this->showOrgLanguage) : ?>
+			<th width="10%" align="left" nowrap="nowrap"><?php echo JText::_( 'ORIGINAL' ).'-'.JText::_( 'LANGUAGE' );?></th>
+			<?php endif; ?>
+			
+			<th width="20%" align="left" nowrap="nowrap"><?php echo JText::_('TITLE_TRANSLATION');?></th>
+			<th width="15%" align="left" nowrap="nowrap"><?php echo JText::_('TITLE_DATECHANGED');?></th>
+			<th width="15%" nowrap="nowrap" align="center"><?php echo JText::_('TITLE_STATE');?></th>
+			<th align="center" nowrap="nowrap"><?php echo JText::_('TITLE_PUBLISHED');?></th>
 		</tr>
-    </tfoot>
-    
-    <tbody>
-    <?php
-    $k=0;
-    $i=0;
-	foreach ($this->rows as $row ) {
-				?>
-    <tr class="<?php echo "row$k"; ?>">
-      <td width="20">
-        <?php		if ($row->checked_out && $row->checked_out != $user->id) { ?>
-        &nbsp;
-        <?php		} else { ?>
-        <input type="checkbox" id="cb<?php echo $i;?>" name="cid[]" value="<?php echo $row->translation_id."|".$row->id."|".$row->language_id; ?>" onclick="isChecked(this.checked);" />
-        <?php		} ?>
-      </td>
-      <td>
-      	<?php
-      	$title = $row->title;
-      	if(strlen($title) > 75) {
-      		$title = '<span title="' .$title. '">';
-      		$title .= substr($row->title,0, 75) .' ...';
-      		$title .= '</span>';
-      	}
-      	?>
-      	<a href="#edit" onclick=" return listItemTask('cb<?php echo $i;?>','translate.edit');"">
-      	<?php
-      	// Cutting the tile to a max number in order to support long title fields
-      	 echo $title; 
-      	?></a>
+		</thead>
+		<tfoot>
+				<tr>
+				<td align="center" colspan="8">
+			<?php echo $this->pageNav->getListFooter(); ?>
 			</td>
-      <td nowrap><?php echo $row->language ? $row->language : JText::_( 'NOTRANSLATIONYET' ) ; ?></td>
-      <td><?php
-      	$translation = $row->titleTranslation ? $row->titleTranslation : '&nbsp;';
-      	$output = '';
-      	if(strlen($translation) > 75) {
-      		$output = '<span title="' .$translation. '">';
-      		$output .= substr($translation,0, 75) .' ...';
-      		$output .= '</span>';
-      	} else {
-      		$output = $translation;
-      	}
-      
-       echo $output; 
-       ?></td>
-	  <td><?php echo $row->lastchanged ? JHTML::_('date', $row->lastchanged, JText::_('DATE_FORMAT_LC2')):"" ;?></td>
+		</tr>
+		</tfoot>
+		
+		<tbody>
+		<?php
+		$k=0;
+		$i=0;
+	foreach ($this->rows as $row ) {
+		?>
+		<tr class="<?php echo "row$k"; ?>">
+			<td width="20">
+				<?php		if ( ($row->checked_out && $row->checked_out != $user->id) || ($this->showOrgLanguage && ($row->language_id == $row->org_language_id) )) { ?>
+				&nbsp;
+				<?php		} else { ?>
+				<input type="checkbox" id="cb<?php echo $i;?>" name="cid[]" value="<?php echo $row->translation_id."|".$row->id."|".$row->language_id; ?>" onclick="isChecked(this.checked);" />
+				<?php		} ?>
+			</td>
+			<td>
+				<?php
+				$title = $row->title;
+				if(strlen($title) > 75) {
+					$title = '<span title="' .$title. '">';
+					$title .= substr($row->title,0, 75) .' ...';
+					$title .= '</span>';
+				}
+				/*
+				TODO check if the $row->id in #__jf_translationmap field reference_id if so do not edit as translation
+				or need we an extra field in cid 
+				
+				*/
+				?>
+				<?php if ( ($row->checked_out && $row->checked_out != $user->id) || ($this->showOrgLanguage && ($row->language_id == $row->org_language_id) )) { ?>
+					<?php echo $title; ?>
+				<?php } else { ?>
+				<a href="#edit" onclick=" return listItemTask('cb<?php echo $i;?>','translate.edit');">
+					<?php // Cutting the tile to a max number in order to support long title fields ?>
+					<?php echo $title; ?>
+				</a>
+				<?php } ?>
+			</td>
+			<td nowrap><?php echo $row->language ? $row->language : JText::_( 'NOTRANSLATIONYET' ) ; ?></td>
+			<?php if($this->showOrgLanguage) : ?>
+			
+			<td nowrap>
+				<!-- 
+				TODO 
+				add an icon/link for put in #__jf_translationmap if the language row the selectet language
+				
+				link will popup an selection dialog on success redirect
+				
+				over controllers/translate
+				need new function like save but only act:
+				
+				// Save the translation map 
+				
+				$this->generateTranslationMap($table, $isNew, $this->contentElement->getTableName(), $elementTable);
+				
+				$article = an table object 
+				TranslationObject->generateTranslationMap( &$article, $isNew, $tablename, $elementTable=false){
+				and redirect to here
+				
+				
+				
+				only if not in #__jf_translationmap
+				field reference_id and translation_id $row->id 
+				and reference_table = $this->catid
+				
+				$referencefield = "id";
+
+				$referencefield = $row->contentElement->PrimaryKey;
+	
+				$more1 = "\nSELECT tm4.reference_id from #__jf_translationmap as tm4 WHERE tm4.reference_table=".$db->quote($this->catid);
+				$more2 = "\nSELECT tm5.translation_id from #__jf_translationmap as tm5 WHERE tm5.reference_table=".$db->quote($this->catid);
+				
+				$more = " AND ( c." . $referencefield. " NOT IN (".$more2." ) AND c." . $referencefield. " NOT IN (".$more1." )) ";
+				$more = " AND (".$moreFilter." c." . $referencefield. " NOT IN (".$more2." ) )"; //AND c." . $referencefield. " NOT IN (".$more1." )) ";
+				
+				$query = $db->getQuery(true);
+				$query->select('*');
+				$query->from('#__" . $row->contentElement->referenceInformation['tablename'] . ' as c');
+				
+				$query->from('#__jf_translationmap as tm');
+				$join[] = "tm.translation_id=ct.".$referencefield;
+				$query->leftJoin($condition)
+				. "\nLEFT JOIN #__" . $contentTable->Name . " as ct ON " . implode(' AND ', $join)
+				
+				//$query->where('id > \'1\'');
+				$query->where('reference_table = '.$db->quote($this->catid));
+				$db->setQuery($query);
+				$transmap = $db->loadObjectList();
+				
+				
+				if($this->language_id == $row->org_language_id)
+				
+
+				$row is an TranslationObject can we also execute?
+				
+				-->
+				<?php 
+				//FB::dump($row->id);
+				//echo $modelTranslationmap->checkTranslationMap( $this->language_id,$row->language_id );
+				echo $row->checkTranslationMap( $this->language_id );
+				
+				// echo $row->getTranslationMapNeedUpdate($this->language_id); ?>
+				<?php echo $row->org_language ? $row->org_language : '*'; ?>
+				
+				<?php if($this->language_id == $row->org_language_id) : ?>
+					<!-- we need an field with the orig_language_id get -->
+					<!-- get -->
+				<?php endif; ?>
+			</td>
+			<?php endif; ?>
+			<td><?php
+				$translation = $row->titleTranslation ? $row->titleTranslation : '&nbsp;';
+				$output = '';
+				if(strlen($translation) > 75) {
+					$output = '<span title="' .$translation. '">';
+					$output .= substr($translation,0, 75) .' ...';
+					$output .= '</span>';
+				} else {
+					$output = $translation;
+				}
+			
+				echo $output; 
+			?></td>
+		<td><?php echo $row->lastchanged ? JHTML::_('date', $row->lastchanged, JText::_('DATE_FORMAT_LC2')):"" ;?></td>
 				<?php
 				switch( $row->state ) {
 					case 1:

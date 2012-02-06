@@ -45,6 +45,7 @@ defined( '_JEXEC' ) or die( 'Restricted access' );
  * @author Alex Kempkens
  */
 class jfContent extends JTable  {
+
 	/** @var int Primary ke */
 	public $id=null;
 	/** @var int Reference id for the language */

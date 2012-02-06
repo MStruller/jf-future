@@ -48,6 +48,93 @@ class  JoomfishExtensionHelper  {
 	
 	private static $imagePath;
 	
+	
+	/**
+	MS: add
+	 * get the extraPath
+	 * @return	mixed array or string
+	 */
+	public function getTreatmentIncludePath($treatment = '') 
+	{
+		if(!$treatment)
+		{
+			return null;
+		}
+		$includePath = null;
+		if(isset($treatment['includePath']))
+		{
+			if(is_array($treatment['includePath']))
+			{
+				//check for attributes
+				if(isset($treatment['includePath']['attributes']['extension']) && $treatment['includePath']['attributes']['extension'] && isset($treatment['extension']) )
+				{
+					//ok we need to get the extension something in joomla core to help?
+					//hm only Component
+					$extension = $treatment['extension'];
+					if (strpos($treatment['extension'], "com_") ===0)
+					{
+						$folder = '';
+						if(isset($treatment['includePath']['value']))
+						{
+							$folder = DS.$treatment['includePath']['value'];
+						}
+						if(isset($treatment['includePath']['attributes']['site']) && $treatment['includePath']['attributes']['site'])
+						{
+							$includePath = (JFolder::exists(JPATH_SITE.DS.'components'.DS.$extension.$folder) ? JPATH_SITE.DS.'components'.DS.$extension.$folder : null);
+						}
+						else
+						{
+							$includePath = (JFolder::exists(JPATH_ADMINISTRATOR.DS.'components'.DS.$extension.$folder) ? JPATH_ADMINISTRATOR.DS.'components'.DS.$extension.$folder : null);
+						}
+					}
+				}
+			}
+			else
+			{
+				$includePath = (JFolder::exists(JPATH_ROOT.DS.$treatment['includePath']) ? JPATH_ROOT.DS.$treatment['includePath'] : null);
+			}
+		}
+		if($includePath)
+		{
+			$includePath = JPATH::clean($includePath);
+		}
+		return $includePath;
+	}
+	
+	
+	/**
+	MS: add
+	 * get the extraPath
+	 * @return	mixed array or string
+	 */
+	public static function getExtraPath($path = '') 
+	{
+		static $extraPaths;
+		if($path && isset($extraPaths[$path]) )
+		{
+			return $extraPaths[$path];
+		}
+		if (isset($extraPaths) && !$path) 
+		{
+			return $extraPaths;
+		}
+		$extraPaths = array();
+		$base = JPATH::clean(JOOMFISH_ADMINPATH .DS. 'models'.DS.'jf');
+		$extraPaths['base'] = $base;
+		$extraPaths['element'] = $base.DS.'element';	// ContentElement
+		$extraPaths['filters'] = $base.DS.'filters';	// TranslationFilter
+		$extraPaths['forms'] = $base.DS.'forms';		// TranslateForms
+		$extraPaths['models'] = $base.DS.'models';		// TranslateModel
+		$extraPaths['objects'] = $base.DS.'objects';	// TranslationObject
+		$extraPaths['params'] = $base.DS.'params';		// TranslateParam
+		//$extraPaths['xmls'] = $base.DS.'xmls';			// contentelements
+		$extraPaths['contentelements'] = JPATH::clean(JOOMFISH_ADMINPATH .DS.'contentelements');	// contentelements
+		$extraPaths['languageconfig'] = JPATH::clean(JOOMFISH_ADMINPATH .DS.'contentelements');	// contentelements
+		return ($path ? $extraPaths[$path] : $extraPaths);
+		
+	}
+	
+	
 	/**
 	 * Is JoomFish activated and ready to work?
 	 * @return	true if the JoomFish extension is correctly installed, configured and activated
@@ -119,6 +206,7 @@ class  JoomfishExtensionHelper  {
 				self::$imagePath[$path] = $path;
 			}
 		}
+		//self::$imagePath[$path] = str_replace(DS,'/',self::$imagePath[$path]);
 		return self::$imagePath[$path];
 	}	
 }

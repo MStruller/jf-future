@@ -154,7 +154,9 @@ class ElementsController extends JController   {
 	 */
 	private function _deleteContentElement( $filename = null ) {
 
-		$elementfolder = JOOMFISH_ADMINPATH .DS. 'contentelements/';
+		//$elementfolder = JOOMFISH_ADMINPATH .DS. 'contentelements/';
+		//$elementfolder = JoomfishExtensionHelper::getExtraPath('xmls');
+		$elementfolder = JoomfishExtensionHelper::getExtraPath('contentelements');
 		$filename .= '.xml';
 		jimport('joomla.filesystem.file');
 		return JFile::delete($elementfolder . $filename);

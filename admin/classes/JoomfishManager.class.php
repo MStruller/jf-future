@@ -81,9 +81,108 @@ class JoomFishManager {
 	/** @var array for all active languages listed by ID */
 	private $activeLanguagesCacheByID=array();
 	
+	private $treatment = null;
+	/**
+	MS:
+	 * An array to hold included paths
+	 *
+	 * @var	array
+	 */
+	public static $includePaths = array();
+
+
+	public function getIncludePath($type = 'contentelements')
+	{
+		$return = isset(self::$includePaths[$type]) ? self::$includePaths[$type] : null;
+		return $return;
+	}
+
+	/**
+	 * Add a directory where JoomfishManager should search for contentelements or.... 
+	 * //You may either pass a string or an array of directories.
+	 *
+	 * @param	string	A path to search.
+	 *
+	 * @return	array	An array with directory elements
+	 */
+
+	public static function addIncludePath($path = '', $type = 'contentelements')
+	{
+		//static $paths;
+
+		if (!isset(self::$includePaths)) {
+			self::$includePaths = array();
+		}
+
+		if (!isset(self::$includePaths[$type])) {
+			self::$includePaths[$type] = array();
+		}
+		/*
+		if (!isset($paths[''])) {
+			$paths[''] = array();
+		}
+		*/
+		if (!empty(self::$includePaths)) {
+			jimport('joomla.filesystem.path');
+
+			if (!in_array($path, self::$includePaths[$type])) {
+				array_unshift(self::$includePaths[$type], JPath::clean($path));
+			}
+			/*
+			if (!in_array($path, $paths[''])) {
+				array_unshift($paths[''], JPath::clean($path));
+			}
+			*/
+		}
+
+		return self::$includePaths[$type];
+	}
+
+	/** Name of the refering table
+	 */
+	public function getTableName($xmlDoc)
+	{
+		if (!$xmlDoc)
+		{
+			return null;
+		}
+
+		$xpath = new DOMXPath($xmlDoc);
+		$tableElement = $xpath->query('//reference/table')->item(0);
+		$tableName = trim($tableElement->getAttribute('name'));
+		$name = strtolower($tableName);
+		return $name;
+	}
+	
+	/** Name of the refering table
+	 */
+	public function getElementName($xmlDoc)
+	{
+		if (!$xmlDoc)
+		{
+			return null;
+		}
+		$element = $xmlDoc->documentElement;
+		if ($element->nodeName == 'joomfish') 
+		{
+			if ( $element->getAttribute('type')=='contentelement' ) 
+			{
+				$nameElements = $element->getElementsByTagName('name');
+				$nameElement = $nameElements->item(0);
+				$name = strtolower( trim($nameElement->textContent) );
+				return $name;
+			}
+		}
+		return null;
+	}
+
+	
 	/** Standard constructor */
 	public function __construct() {
-		include_once(JOOMFISH_ADMINPATH .DS. "models".DS."ContentElement.php");
+		
+		require_once( JOOMFISH_ADMINPATH .DS. 'helpers' .DS. 'extensionHelper.php' );
+		include_once(JoomfishExtensionHelper::getExtraPath('element').DS."ContentElement.php");
+		//include_once(JOOMFISH_ADMINPATH .DS. "models".DS."ContentElement.php");
 
 		// now redundant
 		$this->_loadPrimaryKeyData();
@@ -180,7 +279,40 @@ class JoomFishManager {
 		// XML library
 
 		// Try to find the XML file
-		$filesindir = JFolder::files(JOOMFISH_ADMINPATH ."/contentelements" ,".xml");
+		//MS: add includesPaths
+		$filesindir = array();
+		if (isset(self::$includePaths['contentelements']) && count(self::$includePaths['contentelements']))
+		{
+			foreach(self::$includePaths['contentelements'] as $includePath)
+			{
+				if(count($filesindir))
+				{
+					array_merge($filesindir, JFolder::files($includePath ,".xml"));
+				}
+				else
+				{
+					$filesindir = JFolder::files($includePath ,".xml");
+				}
+			}
+		}
+		else
+		{
+			//$filesindir = JFolder::files(JOOMFISH_ADMINPATH ."/contentelements" ,".xml");
+			//$filesindir = JFolder::files(JoomfishExtensionHelper::getExtraPath('xmls') ,".xml");
+			$filesindir = JFolder::files(JoomfishExtensionHelper::getExtraPath('contentelements') ,".xml");
+		}
+		
+		//TODO only contentelement use includePath
+		//all other path in the contentElementXML
+		/*
+		if (isset(self::$includePaths['modelcontentelement']) && count(self::$includePaths['modelcontentelement']))
+		{
+			foreach(self::$includePaths['modelcontentelement'] as $includePath)
+			{
+				$modelfilesindir = JFolder::files($includePath ,".php",false,true);
+			}
+		}
+		*/
 		if(count($filesindir) > 0)
 		{
 			$this->_contentElements = array();
@@ -188,14 +320,64 @@ class JoomFishManager {
 			{
 				unset($xmlDoc);
 				$xmlDoc = new DOMDocument();
-				if ($xmlDoc->load(JOOMFISH_ADMINPATH . "/contentelements/" . $file)) {
+				
+				//if ($xmlDoc->load(JOOMFISH_ADMINPATH . "/contentelements/" . $file)) {
+				//if ($xmlDoc->load(JoomfishExtensionHelper::getExtraPath('xmls').DS. $file)) {
+				if ($xmlDoc->load(JoomfishExtensionHelper::getExtraPath('contentelements').DS. $file)) {
 					$element = $xmlDoc->documentElement;
 					if ($element->nodeName == 'joomfish') {
 						if ( $element->getAttribute('type')=='contentelement' ) {
 							$nameElements = $element->getElementsByTagName('name');
 							$nameElement = $nameElements->item(0);
 							$name = strtolower( trim($nameElement->textContent) );
+							$contentElement = null;
+							$tableName = self::getTableName($xmlDoc);
+							$treatment = self::getTreatment($xmlDoc,$tableName);
+							if(count($treatment) > 0)
+							{
+								$includePath = JoomfishExtensionHelper::getTreatmentIncludePath($treatment);
+								if(isset($treatment['contentElement']))
+								{
+									$className = 'ContentElement'.$treatment['contentElement'];
+								}
+								else
+								{
+									$className = 'ContentElement'.ucfirst($tableName);
+								}
+								/*	
+								if(isset($treatment['contentElementPath']) && isset($className))
+								{
+									if($file = JPath::find(JPATH_ROOT.DS.$treatment['contentElementPath'], $className.'.php'))
+									{
+										include_once($file);
+									}
+								}
+								else
+								*/
+								if(isset($includePath) && isset($className))
+								{
+									if($file = JPath::find($includePath.DS.'element', $className.'.php'))
+									{
+										include_once($file);
+									}
+								}
+								elseif(isset($className))
+								{
+									//if($file = JPath::find(JOOMFISH_ADMINPATH.DS.'models', $className.'.php'))
+									if($file = JPath::find(JoomfishExtensionHelper::getExtraPath('element'), $className.'.php'))
+									{
+										include_once($file);
+									}
+								}
+								if(isset($className) && class_exists($className))
+								{
+									$contentElement = new $className( $xmlDoc );
+								}
+							}
+							
+							if(!$contentElement)
 							$contentElement = new ContentElement( $xmlDoc );
+							
 							$this->_contentElements[$contentElement->getTableName()] = $contentElement;
 						}
 					}
@@ -214,8 +396,24 @@ class JoomFishManager {
 		if (array_key_exists($tablename,$this->_contentElements)){
 			return;
 		}
+		$file = null;
+		if (isset(self::$includePaths['contentelements']) && count(self::$includePaths['contentelements']))
+		{
+			foreach(self::$includePaths['contentelements'] as $includePath)
+			{
+				if ($file = JPath::find($includePath, strtolower($tablename).'.xml'))
+				{
+					break;
+				}
+			}
+		}
+		if(!$file)
+		{
+			//$file = JOOMFISH_ADMINPATH .'/contentelements/'.$tablename.".xml";
+			//$file = JoomfishExtensionHelper::getExtraPath('xmls').DS.$tablename.'.xml';
+			$file = JoomfishExtensionHelper::getExtraPath('contentelements').DS.$tablename.'.xml';
+		}
 
-		$file = JOOMFISH_ADMINPATH .'/contentelements/'.$tablename.".xml";
 		if (file_exists($file)){
 			unset($xmlDoc);
 			$xmlDoc = new DOMDocument();
@@ -225,8 +423,59 @@ class JoomFishManager {
 					if ( $element->getAttribute('type')=='contentelement' ) {
 						$nameElements = $element->getElementsByTagName('name');
 						$nameElement = $nameElements->item(0);
+						
 						$name = strtolower( trim($nameElement->textContent) );
-						$contentElement = new ContentElement( $xmlDoc );
+						
+						$contentElement = null;
+						$tableName = self::getTableName($xmlDoc);
+						$treatment = self::getTreatment($xmlDoc,$tableName);
+						if(count($treatment) > 0)
+						{
+							$includePath = JoomfishExtensionHelper::getTreatmentIncludePath($treatment);
+							if(isset($treatment['contentElement']))
+							{
+								$className = 'ContentElement'.$treatment['contentElement'];
+							}
+							else
+							{
+								$className = 'ContentElement'.ucfirst($tableName);
+							}
+							/*
+							if(isset($treatment['contentElementPath']) && isset($className))
+							{
+								if($file = JPath::find(JPATH_ROOT.DS.$treatment['contentElementPath'], $className.'.php'))
+								{
+									include_once($file);
+								}
+							}
+							else
+							*/
+							if(isset($includePath) && isset($className))
+							{
+								if($file = JPath::find($includePath.DS.'element', $className.'.php'))
+								{
+									include_once($file);
+								}
+							}
+							elseif(isset($className))
+							{
+								//if($file = JPath::find(JOOMFISH_ADMINPATH.DS.'models', $className.'.php'))
+								if($file = JPath::find(JoomfishExtensionHelper::getExtraPath('element'), $className.'.php'))
+								{
+									include_once($file);
+								}
+							}
+							
+							if(isset($className) && class_exists($className))
+							{
+								$contentElement = new $className( $xmlDoc );
+							}
+						}
+
+						if(!$contentElement)
+						{
+							$contentElement = new ContentElement( $xmlDoc );
+						}
 						$this->_contentElements[$contentElement->getTableName()] = $contentElement;
 						return $contentElement;
 					}
@@ -235,6 +484,65 @@ class JoomFishManager {
 		}
 		return null;
 	}
+
+
+	public function getTreatment($xmlDoc,$tableName = null)
+	{
+		/*
+		if(isset($this->treatment))
+		{
+			return $this->treatment;
+		}
+		*/
+		
+		if(!$tableName)
+		{
+			$tableName = self::getTableName($xmlDoc);
+		}
+		$xpath = new DOMXPath($xmlDoc);
+		
+		if(isset($this->treatment[$tableName]))
+		{
+			return $this->treatment[$tableName];
+		}
+
+		$treatment = array();
+		$treatments = $xpath->query('//reference/treatment')->item(0);
+		if($treatments && $treatments->hasChildNodes())
+		{
+			foreach ($treatments->childNodes as $node)
+			{
+				if($node->nodeType == XML_ELEMENT_NODE)
+				{
+					$add = array();
+					if($node->hasAttributes())
+					{
+						$attributes = $node->attributes;
+						if(!is_null($attributes))
+						{
+							foreach ($attributes as $index => $attribute)
+							{
+								$add[$attribute->name] = $attribute->value;
+							}
+						}
+					}
+					if(count($add) > 0)
+					{
+						$treatment[$node->nodeName] = array('value'=>$node->nodeValue,'attributes'=>$add);
+					}
+					else
+					{
+						$treatment[$node->nodeName] = $node->nodeValue;
+					}
+				}
+			}
+		}
+		//return $treatment;
+		//we can have more than one
+		$this->treatment[$tableName] = $treatment;
+		return $this->treatment[$tableName];
+	}
+
 
 	/**
 	 * Method to return the content element files
