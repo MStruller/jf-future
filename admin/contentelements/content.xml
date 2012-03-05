@@ -47,5 +47,6 @@
   	  <trash>state</trash>
   	  <archive>state</archive>
   	  <id>id</id>
+  	  <language>language</language>
   </translationfilters>
 </joomfish>

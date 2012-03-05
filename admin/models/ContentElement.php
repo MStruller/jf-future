@@ -329,6 +329,7 @@ class ContentElement
 		$db = JFactory::getDBO();
 		$sqlFields = null;
 		$where = array();
+		$whereFilter = array();
 		$order = null;
 		$join = null;
 		$contentTable = $this->getTable();
@@ -337,6 +338,7 @@ class ContentElement
 			$sqlFilter = $filter->createFilter($this);
 			if ($sqlFilter != ""){
 				$where[] = $sqlFilter;
+				$whereFilter[] = $sqlFilter;
 			}
 		}
 		if ($this->Storage == "joomfish")
@@ -395,6 +397,9 @@ class ContentElement
 			$sqlFields[] = 'jfc.language_id';
 			$sqlFields[] = 'jfl.title as language';
 			$sqlFields[] = "jfc.reference_id as jfc_refid";
+			
+			$sqlFields[] = "jfl.title_native as org_language";
+			
 			$join[] = "jfc.reference_table='$contentTable->Name'";
 			// Now redundant
 			/*
@@ -434,6 +439,48 @@ class ContentElement
 		}
 		else
 		{
+			//native
+			/*
+			MS: change this and also countContentSQL
+			to get all items also for different languages
+			not only selected language and * 
+			
+			an example:
+			
+			we have two user
+			1. User : write in en-GB
+			2. User : write in de-DE
+			
+			both Users create an article 1.User over monkeys in en-GB
+			 the 2.User over flowers in de-DE and also create an article over buildings in *
+			and after create 
+			what we want to see in the overview
+			
+			1. User want to translate the flowers. See the user it whitout the changes belowabove?
+			
+			extend the #__jf_translationmap with field org_reference_id ?
+			or extend the #__jf_translationmap with field time-stamp?
+			example:
+			we have an 3. User: write in it-IT
+			what article will display here in overview? 
+			both english and german?
+			only german?
+			only english?
+			
+			and which is the base article to translate?
+			
+			what is if the users have create and translate the articles without joomfish
+			make an extra view for manuel set translationmap?
+			
+			that is what i will look for
+			
+			
+			filter out other items with the same reference_id in #__jf_translationmap
+			
+			#__jf_translationmap is one that not integrated from the joomla team
+			i think for the joomla core an table like #__jf_translationmap where usefull
+			
+			*/
 			$referencefield = "id";
 
 			foreach ($contentTable->Fields as $tableField)
@@ -447,7 +494,7 @@ class ContentElement
 			}
 
 			// TODO set source language
-			$where[] = '(c.language="*" OR c.language='. $db->quote($this->_defaultlang).')';
+			//MS: remove $where[] = '(c.language="*" OR c.language='. $db->quote($this->_defaultlang).')';
 
 			foreach ($contentTable->Fields as $tableField)
 			{
@@ -495,31 +542,87 @@ class ContentElement
 			//$sqlFields[] = "tm.lastchanged  as lastchanged";
 			$sqlFields[] = "'2010-06-11 05:30:30' as lastchanged";
 
-			if ($contentTable->Filter != '')
+			$sqlFields[] = "l.title_native as org_language";
+			$sqlFields[] = "l.lang_id as org_language_id";
+			
+			if ($contentid_exist)
 			{
-				$where[] = $contentTable->Filter;
-			}
-
-			$transmap = "";
-			if (isset($idLanguage) && $idLanguage != "" && $idLanguage != -1)
-			{
-				$transmap = "\nLEFT JOIN #__jf_translationmap as tm ON  tm.reference_id=c." . $referencefield. " AND tm.reference_table=".$db->quote($contentTable->Name);
-				$transmap .= " AND tm.language=" . $db->quote($lang->code);
-
 				$join[] = "tm.translation_id=ct.".$referencefield;
+				$transmap = "\nLEFT JOIN #__jf_translationmap as tm ON tm.reference_id=c." . $referencefield. " AND tm.reference_table=".$db->quote($contentTable->Name);
+				$transmap .= " AND tm.language=" . $db->quote($lang->code);
 				$sql = "SELECT " . implode(', ', $sqlFields)
 						. "\nFROM #__" . $contentTable->Name . ' as c'
 						. $transmap
 						. "\nLEFT JOIN #__" . $contentTable->Name . " as ct ON " . implode(' AND ', $join)
-						. (count($where) ? "\nWHERE " . implode(' AND ', $where) : "")
-						. (count($order) ? "\nORDER BY " . implode(', ', $order) : "");
+						//get the org language
+						. "\nLEFT JOIN #__languages as l ON c.language=l.lang_code "
+						. (count($where) ? "\nWHERE " . implode(' AND ', $where) : "");
 			}
+			else
+			{
+			if ($contentTable->Filter != '')
+			{
+				$where[] = $contentTable->Filter;
+			}
+			$transmap = "";
+			if (isset($idLanguage) && $idLanguage != "" && $idLanguage != -1)
+			{
+				$transmap = "\nLEFT JOIN #__jf_translationmap as tm ON tm.reference_id=c." . $referencefield. " AND tm.reference_table=".$db->quote($contentTable->Name);
+				$transmap .= " AND tm.language=" . $db->quote($lang->code);
+				
+				$wheretransmap = '';
+				if($contentid_exist)
+				{
+					//ms: only single row for edit hope we have the id
+					$more = "";
+				}
+				else
+				{
+					$more1 = "\nSELECT tm4.reference_id from #__jf_translationmap as tm4 WHERE tm4.reference_table=".$db->quote($contentTable->Name);
+					$more2 = "\nSELECT tm5.translation_id from #__jf_translationmap as tm5 WHERE tm5.reference_table=".$db->quote($contentTable->Name);
+					$moreFilter = '';
+					if ($contentTable->Filter != '')
+					{
+						$whereFilter[] = $contentTable->Filter;
+					}
+					
+					$moreFilter .= (count($whereFilter) ? implode(' AND ', $whereFilter).' AND ' : '');
+					if(JoomfishManager::getDefaultLanguage() == $lang->code )
+					{
+						//$more = " OR (".$moreFilter." c." . $referencefield. " NOT IN (".$more2." ) AND c." . $referencefield. " NOT IN (".$more1." ) ) ";
+					}
+					else
+					{
+						//$more = " OR (".$moreFilter." c." . $referencefield. " NOT IN (".$more2." ) AND c." . $referencefield. " NOT IN (".$more1." )) ";
+					}
+					
+					
+					$more = " AND ( c." . $referencefield. " NOT IN (".$more2." ) AND c." . $referencefield. " NOT IN (".$more1." )) ";
+					$more = " AND (".$moreFilter." c." . $referencefield. " NOT IN (".$more2." ) )"; //AND c." . $referencefield. " NOT IN (".$more1." )) ";
+					//$transmap .= " AND ( c." . $referencefield. " NOT IN (".$more2." ) AND c." . $referencefield. " NOT IN (".$more1." )) ";
+					//$wheretransmap = " OR (tm.reference_id=c." . $referencefield. " AND tm.reference_table=".$db->quote($contentTable->Name);
+					//$wheretransmap .= " AND tm.language=" . $db->quote($lang->code).") ";
+				}
 
-
+				$join[] = "tm.translation_id=ct.".$referencefield;
+				
+				$sql = "SELECT " . implode(', ', $sqlFields)
+						. "\nFROM #__" . $contentTable->Name . ' as c'
+						
+						. $transmap
+						. "\nLEFT JOIN #__" . $contentTable->Name . " as ct ON " . implode(' AND ', $join)
+						//get the org language
+						. "\nLEFT JOIN #__languages as l ON c.language=l.lang_code "
+						. (count($where) ? "\nWHERE " . implode(' AND ', $where) : "")
+						. $wheretransmap
+						. $more
+						. (count($order) ? "\nORDER BY " . implode(', ', $order) : "\nORDER BY c." . $referencefield);
+			}
 
 			if ($limitStart != -1 && $maxRows > 0)
 			{
 				$sql .= "\nLIMIT $limitStart, $maxRows";
+			}
 			}
 			//echo "sql = <pre>" . str_replace("#__", $db->getPrefix(), $sql) . "</pre><br />";
 		}
@@ -676,9 +779,10 @@ class ContentElement
 		// else Joomla storage!
 		else
 		{
-
+$db = JFactory::getDBO();
 			$join = null;
 			$where = null;
+			$whereFilter = array();
 			$referencefield = "";
 
 			foreach ($contentTable->Fields as $tableField)
@@ -699,31 +803,56 @@ class ContentElement
 			else
 			{
 				// TODO we need a source language for the count!
-				$where[] = "(language_id='*' OR language_id=". $db->quote($this->_defaultlang).')';
+				//MS: remove $where[] = "language_id='*' OR language_id=". $db->quote($this->_defaultlang);
 			}
 
 			foreach ($filters as $filter)
 			{
 				$sqlFilter = $filter->createFilter($this);
 				if ($sqlFilter != "")
+				{
 					$where[] = $sqlFilter;
+					$whereFilter[] = $sqlFilter;
+				}
 			}
 			if ($contentTable->Filter != '')
 			{
 				$where[] = $contentTable->Filter;
 			}
 
-			$db = JFactory::getDbo();
-			$transmap = "\nLEFT JOIN #__jf_translationmap as tm ON  tm.reference_id=c." . $referencefield. " AND tm.reference_table=".$db->quote($contentTable->Name);
-			$transmap .= " AND tm.language=" . $db->quote($lang->code);
-			
-			$sql = "SELECT " . implode(', ', $sqlFields)
-					. "\nFROM #__" . $contentTable->Name . ' as c'
-					. $transmap
-					."\nLEFT JOIN #__" . $contentTable->Name . ' as ct ON tm.translation_id=ct.' .$referencefield
-					. (count($where) ? "\nWHERE " . implode(' AND ', $where) : "");
+			$transmap = "";
+			//if (isset($idLanguage) && $idLanguage != "" && $idLanguage != -1)
+			//{
+				$transmap = "\nLEFT JOIN #__jf_translationmap as tm ON tm.reference_id=c." . $referencefield. " AND tm.reference_table=".$db->quote($contentTable->Name);
+				$transmap .= " AND tm.language=" . $db->quote($lang->code);
+				
+				$wheretransmap = '';
+				
+				
+				$more1 = "\nSELECT tm4.reference_id from #__jf_translationmap as tm4 WHERE tm4.reference_table=".$db->quote($contentTable->Name);
+				$more2 = "\nSELECT tm5.translation_id from #__jf_translationmap as tm5 WHERE tm5.reference_table=".$db->quote($contentTable->Name);
+				$moreFilter = '';
+				if ($contentTable->Filter != '')
+				{
+					$whereFilter[] = $contentTable->Filter;
+				}
+					
+				$moreFilter .= (count($whereFilter) ? implode(' AND ', $whereFilter).' AND ' : '');
+				$more = " AND ( c." . $referencefield. " NOT IN (".$more2." ) AND c." . $referencefield. " NOT IN (".$more1." )) ";
+				$more = " AND (".$moreFilter." c." . $referencefield. " NOT IN (".$more2." ) )"; //AND c." . $referencefield. " NOT IN (".$more1." )) ";
+				
 
-			//echo "<pre>count-sql = $sql</pre><br />";
+				$join[] = "tm.translation_id=ct.".$referencefield;
+				
+				$sql = "SELECT " . implode(', ', $sqlFields)
+						. "\nFROM #__" . $contentTable->Name . ' as c'
+						. $transmap
+						. "\nLEFT JOIN #__" . $contentTable->Name . " as ct ON " . implode(' AND ', $join)
+						. (count($where) ? "\nWHERE " . implode(' AND ', $where) : "")
+						. $wheretransmap
+						. $more
+						;
+			//}
 			return $sql;
 		}
 

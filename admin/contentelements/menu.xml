@@ -17,6 +17,7 @@
   		<field type="checked_out_by" name="checked_out" translate="0">Check out by</field>
   		<field type="checked_out_date" name="checked_out_time" translate="0">Check out date</field>
   		<field type="hiddentext" name="home" translate="1" prehandleroriginal="unsetHomeOr">Homepage</field>
+		<field type="text" name="menutype" translate="0">Menutype</field>
 		<filter>c.client_id = 0 </filter>
   	</table>
   	<component>
@@ -27,6 +28,10 @@
 		<tableclass>Menu</tableclass>
 		<publishedfield>published</publishedfield>
 		<translationObjectModel>TranslationObjectMenu</translationObjectModel>
+		<!-- need for translationmap ???-->
+			<filtersX>
+				<filterX>menutype</filterX>
+			</filtersX>
 	</treatment>
   </reference>
   <translationfilters>
@@ -34,5 +39,7 @@
   	  <menutype>menutype</menutype>
   	  <published>published</published>
   	  <trash>published</trash>
+  	  <!-- need for translationmap -->
+		<language>language</language>
   </translationfilters>
  </joomfish>

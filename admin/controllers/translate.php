@@ -147,6 +147,8 @@ class TranslateController extends JController
 		$rows = null;
 		$total = 0;
 		$filterHTML = array();
+		//MS: add for translationmap
+		$showOrgLanguage = null;
 		if ($language_id != -1 && isset($catid) && $catid != "")
 		{
 			$contentElement = $this->_joomfishManager->getContentElement($catid);
@@ -155,9 +157,21 @@ class TranslateController extends JController
 				$catid = "content";
 				$contentElement = $this->_joomfishManager->getContentElement($catid);
 			}
+			$this->view->assignRef('contentElement', $contentElement);
 			JLoader::import('models.TranslationFilter', JOOMFISH_ADMINPATH);
 			$tranFilters = getTranslationFilters($catid, $contentElement);
-
+//MS: add for translationmap
+			//only show column orig language if we have an language filter
+			//and treatment target is native
+			//
+			if($tranFilters && array_key_exists('language',$tranFilters) && $contentElement->getTarget() == 'native')
+			{
+				$showOrgLanguage = true;
+				JLoader::import('models.translationmap', JOOMFISH_ADMINPATH);
+				$translationmap = new TranslationmapModelTranslationmap();
+				$this->view->assignRef('translationmap', $translationmap);
+			}
+			
 			$total = $contentElement->countReferences($language_id, $tranFilters);
 
 			if ($total < $limitstart)
@@ -213,6 +227,9 @@ class TranslateController extends JController
 		$this->view->setLayout('default');
 
 		// Assign data for view - should really do this as I go along
+//MS: add for translationmap
+	$this->view->assignRef('showOrgLanguage', $showOrgLanguage);
+		
 		$this->view->assignRef('rows', $rows);
 		$this->view->assignRef('search', $search);
 		$this->view->assignRef('pageNav', $pageNav);

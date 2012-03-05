@@ -109,6 +109,11 @@ class TranslationObject implements iJFTranslatable
 	/** published Flag if the translation is published or not */
 	public $published = false;
 
+
+	//MS: add
+	public $org_language;
+	public $org_language_id;
+	
 	/** Standard constructor
 	 *
 	 * @param	languageID		ID of the associated language
@@ -382,6 +387,16 @@ class TranslationObject implements iJFTranslatable
 			$this->language_id = $row->language_id;
 			$this->language = $row->language;
 		}
+		
+		if(isset($row->org_language))
+		{
+			$this->org_language = $row->org_language;
+		}
+		if(isset($row->org_language_id))
+		{
+			$this->org_language_id = $row->org_language_id;
+		}
+		
 		$this->lastchanged = $row->lastchanged;
 		$this->published = $row->published;
 		if (isset($row->modified_date))
@@ -993,5 +1008,14 @@ class TranslationObject implements iJFTranslatable
 		{
 			
 		}
+	}
+	
+	
+	/** Returns the content element 
+	 */
+	public function getContentElement()
+	{
+		return $this->contentElement;
+
 	}
 }
