@@ -54,6 +54,15 @@ class ContentElementTablefield {
 	public $MaxLength=80;
 	public $Rows=15;
 	public $Columns=30;
+
+	//public $Scope='';	//for Type category
+	public $Extension='';	//for Type category
+	
+	public $Jform=0;	//where we output 0 is the standard 1 mean output with JForm
+	public $Jformtype='';
+	public $Jformname='';
+	
+	
 	public $posthandler="";
 	public $prehandler="";
 	public $prehandleroriginal="";
@@ -76,7 +85,9 @@ class ContentElementTablefield {
 
 	/** this Flag explains if the original is empty or not */
 	public $originalEmpty=false;
-
+	
+	
+	
 	/** Standard constructur
 	*/
 	public function __construct ( $tablefieldElement ) {
@@ -89,23 +100,33 @@ class ContentElementTablefield {
 		$this->MaxLength = intval( $tablefieldElement->getAttribute( 'maxlength' ) );
 		$this->Rows = intval( $tablefieldElement->getAttribute( 'rows' ) );
 		$this->Columns = intval( $tablefieldElement->getAttribute( 'columns' ) );
+		
+		//$this->Scope = trim( $tablefieldElement->getAttribute( 'scope' ) );
+		$this->Extension = trim( $tablefieldElement->getAttribute( 'extension' ) );
+		$this->Jform = trim( $tablefieldElement->getAttribute( 'jform' ) );
+		$this->Jformtype=trim( $tablefieldElement->getAttribute( 'jformtype' ) );
+		$this->Jformname=trim( $tablefieldElement->getAttribute( 'jformname' ) );
+		
+		
 		$this->posthandler = trim( $tablefieldElement->getAttribute( 'posthandler' ) );
 		$this->prehandler = trim( $tablefieldElement->getAttribute( 'prehandler' ) );
 		$this->prehandlertranslation = trim( $tablefieldElement->getAttribute( 'prehandlertranslation' ) );
 		$this->prehandleroriginal = trim( $tablefieldElement->getAttribute( 'prehandleroriginal' ) );
 		$this->ignoreifblank = intval( $tablefieldElement->getAttribute( 'ignoreifblank' ) );
 		
+		
+		
 		$this->ebuttons = trim( $tablefieldElement->getAttribute( 'ebuttons' ) );
 		if (strpos($this->ebuttons,",")>0){
 			$this->ebuttons = explode(",",$this->ebuttons);
 		}
-		else if ($this->ebuttons=="1"  || strtolower($this->ebuttons)=="true"){
+		else if ($this->ebuttons=="1" || strtolower($this->ebuttons)=="true"){
 			$this->ebuttons = true;
 		}
 		else if (strlen($this->ebuttons)==0) {
 			$this->ebuttons = array("readmore");
 		}
-		else if ($this->ebuttons=="0"  || strtolower($this->ebuttons)=="false"){
+		else if ($this->ebuttons=="0" || strtolower($this->ebuttons)=="false"){
 			$this->ebuttons = false;
 		}
 		else if (strlen($this->ebuttons)>0){
@@ -143,13 +164,7 @@ class ContentElementTablefield {
 			else {
 				$translationobj->jfrequest = array();
 				$this->translationContent->value  = json_encode($translationobj);
-			}			
-			
-
+			}
 		}
-
-
 	}
-	
-	
 }

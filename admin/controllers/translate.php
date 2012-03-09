@@ -280,6 +280,7 @@ class TranslateController extends JController
 		$lang->load('com_config');
 
 		// Assign data for view - should really do this as I go along
+		$this->view->assignRef('contentElement', $contentElement);
 		$this->view->assignRef('translationObject', $translationObject);
 		$this->view->assignRef('tranFilters', $tranFilters);
 		$this->view->assignRef('select_language_id', $select_language_id);

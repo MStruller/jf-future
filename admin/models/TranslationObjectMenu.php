@@ -37,7 +37,7 @@ JLoader::register('iJFTranslatable', JOOMFISH_ADMINPATH . DS . 'models' . DS . '
 
 class  TranslationObjectMenu extends TranslationObject 
 {
-		// Post handlers
+	// Post handlers
 
 	public function saveUrlParams(&$link, $fields, $formarray)
 	{

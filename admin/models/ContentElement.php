@@ -64,6 +64,8 @@ class ContentElement
 	private $_authorFilter = null;
 	private $_defaultlang = null;
 
+	public $Treatment = null;
+	
 	/** Standard constructor, which loads already standard information
 	 * for easy and direct access
 	 */
@@ -101,8 +103,8 @@ class ContentElement
 		if (!isset($this->referenceInformation["type"]) && isset($this->_xmlFile))
 		{
 			$tableElement = $this->_xmlFile->getElementsByTagName('reference')->item(0);
-			$tableName = trim($tableElement->getAttribute('type'));
-			$this->referenceInformation["type"] = $tableName;
+			$type = trim($tableElement->getAttribute('type'));
+			$this->referenceInformation["type"] = $type;
 		}
 
 		return $this->referenceInformation["type"];
@@ -134,6 +136,63 @@ class ContentElement
 
 	}
 
+	public function _getTreatment()
+	{
+		$xpath = new DOMXPath($this->_xmlFile);
+
+		$treatment = array();
+		$treatments = $xpath->query('//reference/treatment')->item(0);
+		if($treatments && $treatments->hasChildNodes())
+		{
+			foreach ($treatments->childNodes as $node)
+			{
+				if($node->nodeType == XML_ELEMENT_NODE)
+				{
+					$add = array();
+					if($node->hasAttributes())
+					{
+						$attributes = $node->attributes;
+						if(!is_null($attributes))
+						{
+							foreach ($attributes as $index => $attribute)
+							{
+								$add[$attribute->name] = $attribute->value;
+							}
+						}
+					}
+					if(count($add) > 0)
+					{
+						$treatment[$node->nodeName] = array('value'=>$node->nodeValue,'attributes'=>$add);
+					}
+					else
+					{
+						$treatment[$node->nodeName] = $node->nodeValue;
+					}
+				}
+			}
+		}
+		$this->Treatment = $treatment;
+	}
+	public function getTreatment()
+	{
+		if(isset($this->Treatment) && $this->Treatment)
+		{
+			return $this->Treatment;
+		}
+		$this->Treatment = array();
+		if (isset($this->_xmlFile))
+		{
+			//$joomfishManager = JoomFishManager::getInstance();
+			//$treatment = $joomfishManager->getTreatment($this->_xmlFile,$this->getTableName());
+			//if(count($treatment))
+			//{
+			//	$this->Treatment = $treatment;
+			//}
+			$this->_getTreatment();
+		}
+		return $this->Treatment;
+		//return null;
+	}
 	/**
 	 * function that returns target that is used to decide where the translation is saved - choices are joomfish (default) or joomla
 	 *
@@ -142,6 +201,15 @@ class ContentElement
 	{
 		if (isset($this->_xmlFile))
 		{
+			$treatment = $this->getTreatment();
+			if(count($treatment) > 0)
+			{
+				if(isset($treatment['target']))
+				{
+					return $treatment['target'];
+				}
+			}
+			/*
 			$xpath = new DOMXPath($this->_xmlFile);
 			$targetElement = $xpath->query('//reference/treatment/target')->item(0);
 			if (!isset($targetElement))
@@ -150,6 +218,7 @@ class ContentElement
 			}
 			$target = trim($targetElement->textContent);
 			return $target;
+			*/
 		}
 		return 'joomfish';
 
@@ -157,28 +226,223 @@ class ContentElement
 
 	/*
 	 * get the translation object class for the table and make sure the source file is loaded
+
+
+	MS:
+	changed this function
+	
+	we have 3 ways to get the $className:
+	1. over $treatment['translationObject']
+	2. over 'TranslationObject'.ucfirst($this->getTableName())
+	3. the base class 'TranslationObject'
+	
+	we can have different folder to search:
+	1. $includePath.DS.'objects'
+		in include path we can have
+		
+		<includePath>administrator/components/com_content/joomfish</includePath>
+		return an path like JPATH_ROOT/administrator/components/com_content/joomfish
+		or 
+		<includePath extension="1" site="0">jf</includePath>
+		<extension>com_content</extension>
+		return an path like JPATH_ADMINISTRATOR/components/com_content/jf
+		
+		<includePath extension="1" site="1">jf</includePath>
+		<extension>com_content</extension>
+		return an path like JPATH_ROOT/components/com_content/jf
+		
+	
+	2. JoomfishExtensionHelper::getExtraPath('objects')
+	for the path i have created JOOMFISH_ADMINPATH.DS.'models'.DS.'jf'....
+
 	 */
 	public function getTranslationObjectClass(){
+		
+		JLoader::import('TranslationObject', JoomfishExtensionHelper::getExtraPath('objects'));
 		if (isset($this->_xmlFile))
 		{
-			$xpath = new DOMXPath($this->_xmlFile);
-			$targetElement = $xpath->query('//reference/treatment/translationObjectModel')->item(0);
-			if (!isset($targetElement))
+			$treatment = $this->getTreatment();
+			if(count($treatment) > 0)
 			{
-				JLoader::import( 'models.TranslationObject',JOOMFISH_ADMINPATH);
-				return 'TranslationObject';
+				$includePath = JoomfishExtensionHelper::getTreatmentIncludePath($treatment);
+				if(isset($treatment['translationObject']))
+				{
+					$className = $treatment['translationObject'];
+				}
+				else
+				{
+					$className = 'TranslationObject'.ucfirst($this->getTableName());
+				}
+				if(isset($includePath) && isset($className))
+				{
+					if($file = JPath::find($includePath.DS.'objects', $className.'.php'))
+					{
+						include_once($file);
+					}
+				}
+				elseif(isset($className))
+				{
+					//if($file = JPath::find(JOOMFISH_ADMINPATH.DS.'models', $className.'.php'))
+					if($file = JPath::find(JoomfishExtensionHelper::getExtraPath('objects'),$className.'.php'))
+					{
+						include_once($file);
+					}
+				}
+				if(isset($className) && class_exists($className))
+				{
+					return $className;
+				}
 			}
-			$translationObjectClass = trim($targetElement->textContent);
-			JLoader::import( "models.$translationObjectClass",JOOMFISH_ADMINPATH);
-			return $translationObjectClass;
 		}
-		JLoader::import( 'models.TranslationObject',JOOMFISH_ADMINPATH);
 		return 'TranslationObject';
 	}
+	
+	/*
+	MS:
+	add this function to work with params
+	
+	we have 3 ways to get the $className:
+	1. over $treatment['translateParams']
+	2. over 'TranslateParams'.ucfirst($this->getTableName())
+	3. the base class 'TranslateParams'
+	
+	we can have different folder to search:
+	1. $includePath.DS.'params'
+	2. JoomfishExtensionHelper::getExtraPath('params')
+	for the path i have created JOOMFISH_ADMINPATH.DS.'models'.DS.'jf'....
+	
+	*/
+	function getTranslateParamsClass()
+	{
+		JLoader::import( 'TranslateParams',JoomfishExtensionHelper::getExtraPath('params'));
+		if (isset($this->_xmlFile))
+		{
+			$treatment = $this->getTreatment();
+			if(count($treatment) > 0)
+			{
+				$includePath = JoomfishExtensionHelper::getTreatmentIncludePath($treatment);
+				if(isset($treatment['translateParams']))
+				{
+					$className = $treatment['translateParams'];
+				}
+				else
+				{
+					$className = 'TranslateParams'.ucfirst($this->getTableName());
+				}
+				//if(isset($treatment['translateParamsPath']) && isset($className))
+				if(isset($includePath) && isset($className))
+				{
+					if($file = JPath::find($includePath.DS.'params', $className.'.php'))
+					{
+						include_once($file);
+					}
+				}
+				elseif(isset($className))
+				{
+					//if($file = JPath::find(JOOMFISH_ADMINPATH.DS.'models', $className.'.php'))
+					if($file = JPath::find(JoomfishExtensionHelper::getExtraPath('params'), $className.'.php'))
+					{
+						include_once($file);
+					}
+				}
+				if(isset($className) && class_exists($className))
+				{
+					return $className;
+				}
+			}
+			//JLoader::import( 'models.TranslateParams',JOOMFISH_ADMINPATH);
+			$className = "TranslateParams".ucfirst($this->getTableName());
+			if (!class_exists($className)){
+				$className = "TranslateParams";
+			}
+
+			return $className;
+		}
+		//JLoader::import( 'models.TranslationObject',JOOMFISH_ADMINPATH);
+		return 'TranslateParams';
+	}
+	
+
+	/*
+	MS:
+	add this function to work with JForm not only in TranslateParams
+	TranslateParams is use this to
+	
+	we have 3 ways to get the $className:
+	1. over $treatment['translateForms']
+	2. over 'TranslateForms'.ucfirst($this->getTableName())
+	3. the base class 'TranslateForms'
+	
+	we can have different folder to search:
+	1. $includePath.DS.'forms'
+	2. JoomfishExtensionHelper::getExtraPath('forms')
+	for the path i have created JOOMFISH_ADMINPATH.DS.'models'.DS.'jf'....
+	
+	*/
+	
+	function getTranslateFormsClass()
+	{
+		JLoader::import( 'TranslateForms',JoomfishExtensionHelper::getExtraPath('forms'));
+		if (isset($this->_xmlFile))
+		{
+			$treatment = $this->getTreatment();
+			if(count($treatment) > 0)
+			{
+				$includePath = JoomfishExtensionHelper::getTreatmentIncludePath($treatment);
+				if(isset($treatment['translateForms']))
+				{
+					$className = $treatment['translateForms'];
+				}
+				else
+				{
+					$className = 'TranslateForms'.ucfirst($this->getTableName());
+				}
+				//if(isset($treatment['translateParamsPath']) && isset($className))
+				if(isset($includePath) && isset($className))
+				{
+					if($file = JPath::find($includePath.DS.'forms', $className.'.php'))
+					{
+						include_once($file);
+					}
+				}
+				elseif(isset($className))
+				{
+					//if($file = JPath::find(JOOMFISH_ADMINPATH.DS.'models', $className.'.php'))
+					if($file = JPath::find(JoomfishExtensionHelper::getExtraPath('forms'), $className.'.php'))
+					{
+						include_once($file);
+					}
+				}
+				if(isset($className) && class_exists($className))
+				{
+					return $className;
+				}
+			}
+			//JLoader::import( 'models.TranslateParams',JOOMFISH_ADMINPATH);
+			$className = "TranslateForms".ucfirst($this->getTableName());
+			if (!class_exists($className)){
+				$className = "TranslateForms";
+			}
+
+			return $className;
+		}
+		//JLoader::import( 'models.TranslationObject',JOOMFISH_ADMINPATH);
+		return 'TranslateForms';
+	}
+
 	
 	public function getPublishedField(){
 		if (isset($this->_xmlFile))
 		{
+			$treatment = $this->getTreatment();
+			if(count($treatment) > 0)
+			{
+				if(isset($treatment['publishedfield']))
+				{
+					return $treatment['publishedfield'];
+				}
+			}
+			/*
 			$xpath = new DOMXPath($this->_xmlFile);
 			$publishedfield = $xpath->query('//reference/treatment/publishedfield')->item(0);
 			if (!isset($publishedfield))
@@ -187,6 +451,7 @@ class ContentElement
 			}
 			$result = trim($publishedfield->textContent);
 			return $result;
+			*/
 		}
 		return 'published';
 		
@@ -196,6 +461,15 @@ class ContentElement
 	{
 		if (isset($this->_xmlFile))
 		{
+			$treatment = $this->getTreatment();
+			if(count($treatment) > 0)
+			{
+				if(isset($treatment['tableclass']))
+				{
+					return $treatment['tableclass'];
+				}
+			}
+			/*
 			$xpath = new DOMXPath($this->_xmlFile);
 			$targetElement = $xpath->query('//reference/treatment/tableclass')->item(0);
 			if (!isset($targetElement))
@@ -204,10 +478,36 @@ class ContentElement
 			}
 			$tableclass = trim($targetElement->textContent);
 			return $tableclass;
+			*/
 		}
 		return false;
 
 	}
+
+
+	public function getTablePrefix()
+	{
+		$treatment = $this->getTreatment();
+		if($treatment && isset($treatment['tableprefix']))
+		{
+			return $treatment['tableprefix'];
+		}
+		return 'JTable';
+	}
+	
+	
+	public function getTablePath()
+	{
+		$treatment = $this->getTreatment();
+		if($treatment && isset($treatment['tablepath']))
+		{
+			return $treatment['tablepath'];
+		}
+		return null;
+	}
+
+
+
 
 	/**
 	 * function that returns filter string and handles getting filter info from xmlfile if needed
@@ -241,7 +541,7 @@ class ContentElement
 	}
 
 	/**
-	 *  returns category filter fieldname (if any)
+	 * returns category filter fieldname (if any)
 	 */
 	public function getCategoryFilter()
 	{
@@ -250,12 +550,60 @@ class ContentElement
 	}
 
 	/**
-	 *  returns author filter fieldname (if any)
+	 * returns author filter fieldname (if any)
 	 */
 	public function getAuthorFilter()
 	{
 		return $this->_getFilter("author");
 
+	}
+
+	/** 
+	MS: add Name of the contentelement
+	
+	*/
+	public function getElementName($xmlDoc)
+	{
+		if (!$xmlDoc)
+		{
+			return null;
+		}
+		$element = $xmlDoc->documentElement;
+		if ($element->nodeName == 'joomfish') 
+		{
+			if ( $element->getAttribute('type')=='contentelement' ) 
+			{
+				$xpath = new DOMXPath($this->_xmlFile);
+				$reference = $xpath->query('//reference')->item(0);
+				$referenceName = trim($reference->getAttribute('name'));
+				if($referenceName)
+				{
+					$this->referenceInformation["referencename"] = strtolower($referenceName);
+				}
+				else
+				{
+					$nameElements = $element->getElementsByTagName('name');
+					$nameElement = $nameElements->item(0);
+					$this->referenceInformation["referencename"] = strtolower( trim($nameElement->textContent) );
+				}
+			}
+		}
+		return $this->referenceInformation["referencename"];
+	}
+
+
+	/** 
+	MS: add Name of the extension
+	
+	*/
+	public function getExtensionName()
+	{
+		$treatment = $this->getTreatment();
+		if($treatment && isset($treatment['extension']))
+		{
+			return $treatment['extension'];
+		}
+		return null;
 	}
 
 	/** Name of the refering table
@@ -312,7 +660,7 @@ class ContentElement
 			$xpath = new DOMXPath($this->_xmlFile);
 			$tableElement = $xpath->query('//reference/table')->item(0);
 
-			$this->referenceInformation["table"] = new ContentElementTable($tableElement);
+			$this->referenceInformation["table"] = new ContentElementTable($tableElement,$this->_xmlFile);
 		}
 
 		return $this->referenceInformation["table"];

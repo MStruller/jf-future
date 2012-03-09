@@ -243,7 +243,7 @@ class TranslationObject implements iJFTranslatable
 				$fieldContent->published = $this->published;
 				$field->translationContent = $fieldContent;
 			}
-			else if ($field->Type == "params" && isset($formArray["jform"][$field->Name]))
+			else if ( ($field->Type == "params" || $field->Type == "category" || strtolower($field->Type) == "paramschilds" ) && isset($formArray["jform"][$field->Name]))
 			{
 				$translationValue = $formArray["jform"][$field->Name];
 
@@ -255,11 +255,15 @@ class TranslationObject implements iJFTranslatable
 						$this->$handler($translationValue, $elementTable->Fields, $formArray, $prefix, $suffix, $storeOriginalText);
 					}
 				}
-
-				$registry = new JRegistry();
-				$registry->loadArray($translationValue);
-				$translationValue = $registry->toString();
-
+				
+				//if ( $field->Type == "params" )
+				//we can have other fields with array not only the params
+				if ( is_array($translationValue) )
+				{
+					$registry = new JRegistry();
+					$registry->loadArray($translationValue);
+					$translationValue = $registry->toString();
+				}
 				$fieldContent = new jfContent($db);
 				$fieldContent->id = $formArray[$prefix . "id_" . $fieldName . $suffix];
 				$fieldContent->reference_id = (intval($formArray[$prefix . "reference_id" . $suffix]) > 0) ? intval($formArray[$prefix . "reference_id" . $suffix]) : $this->id;
@@ -284,6 +288,8 @@ class TranslationObject implements iJFTranslatable
 		}
 
 	}
+
+
 
 	/** Reads the information out of an existing JTable object into the translationObject.
 	 *
@@ -354,7 +360,7 @@ class TranslationObject implements iJFTranslatable
 				$fieldContent->original_value = md5($origObject->$fieldName);
 				// ToDo: Add handling of original text!
 
-				$datenow = & JFactory::getDate();
+				$datenow = JFactory::getDate();
 				$fieldContent->modified = $datenow->toMySQL();
 
 				$fieldContent->modified_by = $user->id;
@@ -528,6 +534,7 @@ class TranslationObject implements iJFTranslatable
 		}
 		else
 		{
+			//native
 			if (isset($row))
 			{	
 				$noprehandlerrow = clone $row;
@@ -688,6 +695,7 @@ class TranslationObject implements iJFTranslatable
 
 	}
 
+
 	/** 
 	 * Stores all fields of the content element
 	 */
@@ -700,6 +708,19 @@ class TranslationObject implements iJFTranslatable
 		{
 			$db = JFactory::getDbo();
 			$tableclass = $this->contentElement->getTableClass();
+			
+			//todo tablepath if we have not joomla core extension
+			//and tableprefix 
+			
+			
+			$tableprefix = $this->contentElement->getTablePrefix();
+			$tablepath = $this->contentElement->getTablePath();
+			
+			if($tablepath)
+			{
+				JTable::addIncludePath($tablepath);
+			}
+			
 			if ($tableclass)
 			{
 				// find the reference id and translation id
@@ -740,14 +761,14 @@ class TranslationObject implements iJFTranslatable
 				if (intval($translation_id) > 0)
 				{
 					// load the translation and amend
-					$table = JTable::getInstance($tableclass);
+					$table = JTable::getInstance($tableclass,$tableprefix);
 					$table->load(intval($translation_id));
 					$isNew = false;
 				}
 				else
 				{
 					// load the original and amend
-					$table = JTable::getInstance($tableclass);
+					$table = JTable::getInstance($tableclass,$tableprefix);
 					$table->load(intval($reference_id));
 					$key = $table->getKeyName();
 					$table->$key = 0;
@@ -770,17 +791,29 @@ class TranslationObject implements iJFTranslatable
 						$table->$fieldname = $fieldContent->value;
 					}
 				}
-
 				// Is the translation published
 				$publishfield = $this->contentElement->getPublishedField();
 				if (isset($table->$publishfield))
 				{
 					$table->$publishfield = $this->published;
 				}
-
-							$app = JFactory::getApplication();
+				
+				$app = &JFactory::getApplication();
 				$language= JFactory::getLanguage(); //get the current language
-				$language->load( 'com_content');
+				/*
+				//ms: add
+				*/
+				if($extension = $this->contentElement->getExtensionName())
+				{
+					$language->load($extension);
+				}
+				else
+				{
+					$language->load( 'com_content'); // ?
+				}
+				/*
+				*/
+				
 				
 				// Check the data.
 				if (!$table->check())
@@ -975,6 +1008,8 @@ class TranslationObject implements iJFTranslatable
 
 	}
 
+	
+
 	public function generateTranslationMap( &$article, $isNew, $tablename, $elementTable=false){
 		$keyname = $article->getKeyName();
 		$translationid = $article->$keyname;
@@ -987,7 +1022,11 @@ class TranslationObject implements iJFTranslatable
 			$sql = "replace into #__jf_translationmap (reference_id, translation_id, reference_table, language ) values ($originalid, $translationid," . $db->quote($tablename) . "," . $db->quote($language) . ")";
 			$db->setQuery($sql);
 			$success = $db->query();
-			return;
+			if($success)
+			{
+				$this->translation_id = $translationid;
+				return true;
+			}
 		}
 		else
 		{
